@@ -1,6 +1,27 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 function HomePage() {
+  const [serverMessage, setServerMessage] = useState("서버 확인 중...");
+
+  useEffect(() => {
+    fetch("http://localhost:3000/api/health")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("서버 응답 오류");
+        }
+
+        return response.json();
+      })
+      .then((data) => {
+        setServerMessage(data.message);
+      })
+      .catch((error) => {
+        console.error("백엔드 연결 오류:", error);
+        setServerMessage("백엔드 연결 실패");
+      });
+  }, []);
+
   const menus = [
     {
       title: "검색",
@@ -36,7 +57,7 @@ function HomePage() {
         padding: "40px 24px",
       }}
     >
-      <section style={{ marginBottom: "40px" }}>
+      <section style={{ marginBottom: "24px" }}>
         <p
           style={{
             margin: 0,
@@ -65,6 +86,21 @@ function HomePage() {
         >
           계절에 맞는 음식, 꽃, 축제와 장소를 찾아보세요.
         </p>
+      </section>
+
+      <section
+        style={{
+          marginBottom: "32px",
+          padding: "14px 16px",
+          borderRadius: "12px",
+          backgroundColor:
+            serverMessage === "백엔드 연결 실패" ? "#fff0f0" : "#f5f7f9",
+          color:
+            serverMessage === "백엔드 연결 실패" ? "#d33" : "#333333",
+          fontSize: "14px",
+        }}
+      >
+        서버 상태: {serverMessage}
       </section>
 
       <section

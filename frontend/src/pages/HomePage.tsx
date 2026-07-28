@@ -32,6 +32,31 @@ const menus = [
   },
 ];
 
+const FEATURED_CATEGORY_ORDER = ["과일", "채소", "수산물", "채소"] as const;
+
+function getFeaturedItems(items: SeasonalItem[]): SeasonalItem[] {
+  const featuredItems: SeasonalItem[] = [];
+
+  for (const category of FEATURED_CATEGORY_ORDER) {
+    const item = items.find(
+      (currentItem) =>
+        currentItem.category === category &&
+        !featuredItems.some(
+          (featuredItem) => featuredItem.keyword === currentItem.keyword
+        )
+    );
+
+    if (item) {
+      featuredItems.push(item);
+    }
+  }
+
+  return [...featuredItems, ...items.filter((item) => !featuredItems.includes(item))].slice(
+    0,
+    4
+  );
+}
+
 function HomePage() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
@@ -130,7 +155,7 @@ function HomePage() {
         {itemsError ? <ErrorState message={itemsError} onRetry={loadCurrentItems} /> : null}
         {!isLoadingItems && !itemsError ? (
           <div className="card-grid">
-            {items.slice(0, 4).map((item) => (
+            {getFeaturedItems(items).map((item) => (
               <SeasonalKeywordCard key={item.keyword} item={item} />
             ))}
           </div>

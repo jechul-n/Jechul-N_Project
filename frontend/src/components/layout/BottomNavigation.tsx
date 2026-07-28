@@ -2,48 +2,30 @@ import { NavLink } from "react-router-dom";
 
 function BottomNavigation() {
   return (
-    <nav
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        width: "100%",
-        height: "70px",
-        display: "flex",
-        justifyContent: "space-around",
-        alignItems: "center",
-        backgroundColor: "white",
-        borderTop: "1px solid #dddddd",
-        zIndex: 1000,
-      }}
-    >
-      <NavLink to="/" style={linkStyle}>
+    <nav className="bottom-navigation" aria-label="주요 메뉴">
+      <NavLink to="/" end className={getLinkClassName}>
         홈
       </NavLink>
 
-      <NavLink to="/search" style={linkStyle}>
+      <NavLink to="/search" className={getLinkClassName}>
         검색
       </NavLink>
 
-      <NavLink to="/map" style={linkStyle}>
+      <NavLink to="/map" className={getLinkClassName}>
         지도
       </NavLink>
 
-      <NavLink to="/recommend" style={linkStyle}>
-        추천
-      </NavLink>
-
-      <NavLink to="/mypage" style={linkStyle}>
-        마이
+      <NavLink to="/saved" className={getLinkClassName}>
+        저장
       </NavLink>
     </nav>
   );
 }
 
-const linkStyle = ({ isActive }: { isActive: boolean }) => ({
-  textDecoration: "none",
-  color: isActive ? "#ff6b35" : "#777777",
-  fontWeight: isActive ? "700" : "400",
-});
+function getLinkClassName({ isActive }: { isActive: boolean }) {
+  return isActive
+    ? "bottom-navigation__link bottom-navigation__link--active"
+    : "bottom-navigation__link";
+}
 
 export default BottomNavigation;

@@ -1,167 +1,156 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+
+import { getHealth } from "../api/healthApi";
+import { getCurrentSeasonalItems } from "../api/seasonalApi";
+import ErrorState from "../components/common/ErrorState";
+import LoadingState from "../components/common/LoadingState";
+import SearchInput from "../components/common/SearchInput";
+import SeasonalKeywordCard from "../components/seasonal/SeasonalKeywordCard";
+import type { SeasonalItem } from "../types/seasonal";
+
+const menus = [
+  {
+    title: "제철 지도",
+    description: "내 주변의 제철 장소를 지도에서 확인해요.",
+    path: "/map",
+  },
+  {
+    title: "저장한 항목",
+    description: "저장한 제철 키워드와 장소를 확인해요.",
+    path: "/saved",
+  },
+  {
+    title: "최근 본 항목",
+    description: "최근에 확인한 키워드와 장소를 다시 봐요.",
+    path: "/recent",
+  },
+  {
+    title: "로그인",
+    description: "로그인과 회원가입 페이지로 이동해요.",
+    path: "/login",
+  },
+];
 
 function HomePage() {
-  const [serverMessage, setServerMessage] = useState("서버 확인 중...");
+  const navigate = useNavigate();
+  const [keyword, setKeyword] = useState("");
+  const [serverMessage, setServerMessage] = useState("서버 확인 중");
+  const [items, setItems] = useState<SeasonalItem[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [itemsError, setItemsError] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:3000/api/health")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("서버 응답 오류");
-        }
+    let isActive = true;
 
-        return response.json();
-      })
+    getHealth()
       .then((data) => {
-        setServerMessage(data.message);
+        if (isActive) {
+          setServerMessage(data.message);
+        }
       })
-      .catch((error) => {
-        console.error("백엔드 연결 오류:", error);
-        setServerMessage("백엔드 연결 실패");
+      .catch(() => {
+        if (isActive) {
+          setServerMessage("백엔드 연결 실패");
+        }
       });
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
-  const menus = [
-    {
-      title: "검색",
-      description: "원하는 제철 음식과 장소를 찾아보세요.",
-      emoji: "🔍",
-      path: "/search",
-    },
-    {
-      title: "지도",
-      description: "내 주변의 제철 장소를 지도에서 확인해요.",
-      emoji: "🗺️",
-      path: "/map",
-    },
-    {
-      title: "추천",
-      description: "지금 가장 알맞은 제철 콘텐츠를 추천받아요.",
-      emoji: "✨",
-      path: "/recommend",
-    },
-    {
-      title: "마이페이지",
-      description: "저장한 장소와 최근 기록을 확인해요.",
-      emoji: "👤",
-      path: "/mypage",
-    },
-  ];
+  const loadCurrentItems = () => {
+    setIsLoadingItems(true);
+    setItemsError("");
+
+    getCurrentSeasonalItems()
+      .then((data) => {
+        setItems(data.items);
+      })
+      .catch(() => {
+        setItemsError("이번 달 제철 추천을 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        setIsLoadingItems(false);
+      });
+  };
+
+  useEffect(() => {
+    loadCurrentItems();
+  }, []);
+
+  const handleSearch = (searchKeyword: string) => {
+    if (!searchKeyword) {
+      return;
+    }
+
+    navigate(`/seasonal/${encodeURIComponent(searchKeyword)}`);
+  };
 
   return (
-    <main
-      style={{
-        maxWidth: "900px",
-        margin: "0 auto",
-        padding: "40px 24px",
-      }}
-    >
-      <section style={{ marginBottom: "24px" }}>
-        <p
-          style={{
-            margin: 0,
-            color: "#ff6b35",
-            fontWeight: 700,
-          }}
-        >
-          지금이 가장 맛있는 순간
+    <section className="page home-page">
+      <header className="home-page__hero">
+        <p className="home-page__eyebrow">지금이 가장 맛있는 순간</p>
+        <h1 className="home-page__title">제철엔</h1>
+        <p className="home-page__description">
+          계절에 맞는 음식, 꽃, 축제와 주변 장소를 찾아보세요.
         </p>
+      </header>
 
-        <h1
-          style={{
-            margin: "8px 0 12px",
-            fontSize: "40px",
-          }}
-        >
-          제철엔
-        </h1>
+      <SearchInput
+        value={keyword}
+        onChange={setKeyword}
+        onSubmit={handleSearch}
+        placeholder="예: 딸기, 전어, 수국"
+      />
 
-        <p
-          style={{
-            margin: 0,
-            color: "#666666",
-            fontSize: "17px",
-          }}
-        >
-          계절에 맞는 음식, 꽃, 축제와 장소를 찾아보세요.
-        </p>
-      </section>
-
-      <section
-        style={{
-          marginBottom: "32px",
-          padding: "14px 16px",
-          borderRadius: "12px",
-          backgroundColor:
-            serverMessage === "백엔드 연결 실패" ? "#fff0f0" : "#f5f7f9",
-          color:
-            serverMessage === "백엔드 연결 실패" ? "#d33" : "#333333",
-          fontSize: "14px",
-        }}
+      <p
+        className={
+          serverMessage === "백엔드 연결 실패"
+            ? "server-status server-status--error"
+            : "server-status"
+        }
       >
         서버 상태: {serverMessage}
-      </section>
+      </p>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "16px",
-        }}
-      >
-        {menus.map((menu) => (
-          <Link
-            key={menu.path}
-            to={menu.path}
-            style={{
-              textDecoration: "none",
-              color: "inherit",
-            }}
-          >
-            <article
-              style={{
-                minHeight: "170px",
-                padding: "24px",
-                border: "1px solid #eeeeee",
-                borderRadius: "20px",
-                backgroundColor: "#ffffff",
-                boxShadow: "0 6px 20px rgba(0, 0, 0, 0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "34px",
-                  marginBottom: "24px",
-                }}
-              >
-                {menu.emoji}
-              </div>
-
-              <h2
-                style={{
-                  margin: "0 0 8px",
-                  fontSize: "21px",
-                }}
-              >
-                {menu.title}
-              </h2>
-
-              <p
-                style={{
-                  margin: 0,
-                  color: "#777777",
-                  lineHeight: 1.5,
-                  fontSize: "14px",
-                }}
-              >
-                {menu.description}
-              </p>
-            </article>
+      <section className="page-section" aria-labelledby="current-seasonal-heading">
+        <div className="section-heading">
+          <div>
+            <h2 id="current-seasonal-heading">이번 달 제철 추천</h2>
+            <p>현재 달에 어울리는 제철 항목입니다.</p>
+          </div>
+          <Link className="button button--text" to="/recommend">
+            전체 보기
           </Link>
-        ))}
+        </div>
+
+        {isLoadingItems ? <LoadingState message="이번 달 제철 항목을 불러오는 중입니다." /> : null}
+        {itemsError ? <ErrorState message={itemsError} onRetry={loadCurrentItems} /> : null}
+        {!isLoadingItems && !itemsError ? (
+          <div className="card-grid">
+            {items.slice(0, 4).map((item) => (
+              <SeasonalKeywordCard key={item.keyword} item={item} />
+            ))}
+          </div>
+        ) : null}
       </section>
-    </main>
+
+      <section className="page-section" aria-labelledby="main-menu-heading">
+        <div className="section-heading">
+          <h2 id="main-menu-heading">주요 메뉴</h2>
+        </div>
+        <div className="home-menu-grid">
+          {menus.map((menu) => (
+            <Link key={menu.path} className="home-menu-card" to={menu.path}>
+              <strong>{menu.title}</strong>
+              <span>{menu.description}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </section>
   );
 }
 

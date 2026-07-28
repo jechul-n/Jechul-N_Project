@@ -1,26 +1,34 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
+import AppLayout from "./components/layout/AppLayout";
 import HomePage from "./pages/HomePage";
+import LoginPage from "./pages/LoginPage";
 import MapPage from "./pages/MapPage";
-import SearchPage from "./pages/SearchPage";
+import NotFoundPage from "./pages/NotFoundPage";
 import RecommendPage from "./pages/RecommendPage";
-import MyPage from "./pages/MyPage";
-import BottomNavigation from "./components/layout/BottomNavigation";
+import RecentPage from "./pages/RecentPage";
+import SavedPage from "./pages/SavedPage";
+import SearchPage from "./pages/SearchPage";
+import SeasonalDetailPage from "./pages/SeasonalDetailPage";
+import SignupPage from "./pages/SignupPage";
 
 function App() {
   return (
     <BrowserRouter>
-      <div style={{ paddingBottom: "80px" }}>
-        <Routes>
+      <Routes>
+        <Route element={<AppLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/map" element={<MapPage />} />
+          <Route path="/seasonal/:keyword" element={<SeasonalDetailPage />} />
           <Route path="/recommend" element={<RecommendPage />} />
-          <Route path="/mypage" element={<MyPage />} />
-        </Routes>
-      </div>
-
-      <BottomNavigation />
+          <Route path="/map" element={<MapPage />} />
+          <Route path="/saved" element={<SavedPage />} />
+          <Route path="/recent" element={<RecentPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }

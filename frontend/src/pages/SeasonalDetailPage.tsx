@@ -6,11 +6,13 @@ import ErrorState from "../components/common/ErrorState";
 import LoadingState from "../components/common/LoadingState";
 import SaveButton from "../components/common/SaveButton";
 import PageHeader from "../components/layout/PageHeader";
+import PlacesMap from "../components/map/PlacesMap";
 import PlaceCard from "../components/places/PlaceCard";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { useRecentItems } from "../hooks/useRecentItems";
 import { useSavedItems } from "../hooks/useSavedItems";
 import type { DiscoverResult } from "../types/place";
+import type { Place } from "../types/place";
 
 function SeasonalDetailPage() {
   const { keyword: keywordParam } = useParams();
@@ -26,9 +28,11 @@ function SeasonalDetailPage() {
   const [result, setResult] = useState<DiscoverResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 
   useEffect(() => {
     setResult(null);
+    setSelectedPlaceId(null);
     setErrorMessage("");
     requestLocation();
   }, [keyword, requestLocation]);
@@ -98,9 +102,21 @@ function SeasonalDetailPage() {
 
   const handleRetry = () => {
     setResult(null);
+    setSelectedPlaceId(null);
     setErrorMessage("");
     requestLocation();
   };
+
+  const createStoredPlace = (place: Place) => ({
+    placeId: place.id,
+    name: place.name,
+    address: place.address,
+    category: place.category,
+    relatedKeyword: result?.keyword || keyword,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    placeUrl: place.placeUrl,
+  });
 
   return (
     <section className="page seasonal-detail-page">
@@ -157,7 +173,7 @@ function SeasonalDetailPage() {
             ) : null}
           </section>
 
-          <section className="page-section" aria-labelledby="nearby-places-heading">
+          <section className="page-section seasonal-detail-places" aria-labelledby="nearby-places-heading">
             <div className="section-heading">
               <div>
                 <h2 id="nearby-places-heading">주변 관련 장소</h2>
@@ -172,42 +188,32 @@ function SeasonalDetailPage() {
             ) : result.places.length === 0 ? (
               <p className="muted-text">현재 위치 주변에서 관련 장소를 찾지 못했습니다.</p>
             ) : (
-              <div className="content-list">
+              <div className="seasonal-detail-place-list">
+                {location ? (
+                  <PlacesMap
+                    places={result.places}
+                    center={{ latitude: location.latitude, longitude: location.longitude }}
+                    selectedPlaceId={selectedPlaceId}
+                    onPlaceSelect={(place) => setSelectedPlaceId(place.id)}
+                  />
+                ) : null}
+                <div className="content-list">
                 {result.places.map((place) => (
                   <PlaceCard
                     key={place.id}
                     place={place}
+                    selected={selectedPlaceId === place.id}
+                    onSelect={(selectedPlace) => setSelectedPlaceId(selectedPlace.id)}
                     actions={
                       <SaveButton
                         isSaved={hasPlace(place.id)}
-                        onClick={() =>
-                          savePlace({
-                            placeId: place.id,
-                            name: place.name,
-                            address: place.address,
-                            category: place.category,
-                            relatedKeyword: result.keyword,
-                            latitude: place.latitude,
-                            longitude: place.longitude,
-                            placeUrl: place.placeUrl,
-                          })
-                        }
+                        onClick={() => savePlace(createStoredPlace(place))}
                       />
                     }
-                    onOpen={() =>
-                      recordPlace({
-                        placeId: place.id,
-                        name: place.name,
-                        address: place.address,
-                        category: place.category,
-                        relatedKeyword: result.keyword,
-                        latitude: place.latitude,
-                        longitude: place.longitude,
-                        placeUrl: place.placeUrl,
-                      })
-                    }
+                    onOpen={() => recordPlace(createStoredPlace(place))}
                   />
                 ))}
+                </div>
               </div>
             )}
           </section>

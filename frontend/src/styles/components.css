@@ -172,6 +172,28 @@
   gap: var(--space-2);
 }
 
+.place-card--selected {
+  border-color: var(--color-text);
+}
+
+.seasonal-detail-places,
+.seasonal-detail-place-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.seasonal-detail-map-container {
+  position: relative;
+}
+
+.seasonal-detail-map {
+  width: 100%;
+  height: clamp(15rem, 52vw, 20rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
 .state-message {
   gap: var(--space-3);
   background: var(--color-surface-muted);

@@ -11,6 +11,7 @@ export interface Kakao {
 export interface KakaoMaps {
   load(callback: () => void): void;
   LatLng: new (latitude: number, longitude: number) => KakaoLatLng;
+  LatLngBounds: new () => KakaoLatLngBounds;
   Map: new (container: HTMLElement, options: KakaoMapOptions) => KakaoMap;
   Marker: new (options: KakaoMarkerOptions) => KakaoMarker;
   InfoWindow: new (options: KakaoInfoWindowOptions) => KakaoInfoWindow;
@@ -22,9 +23,15 @@ export interface KakaoLatLng {
   getLng(): number;
 }
 
+export interface KakaoLatLngBounds {
+  extend(position: KakaoLatLng): void;
+}
+
 export interface KakaoMap {
   setCenter(position: KakaoLatLng): void;
   getCenter(): KakaoLatLng;
+  panTo(position: KakaoLatLng): void;
+  setBounds(bounds: KakaoLatLngBounds): void;
 }
 
 export interface KakaoMapOptions {

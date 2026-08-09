@@ -25,11 +25,6 @@ const menus = [
     description: "최근에 확인한 키워드와 장소를 다시 봐요.",
     path: "/recent",
   },
-  {
-    title: "로그인",
-    description: "로그인과 회원가입 페이지로 이동해요.",
-    path: "/login",
-  },
 ];
 
 const MONTH_SEARCH_PATTERN = /^(1[0-2]|[1-9])월$/;

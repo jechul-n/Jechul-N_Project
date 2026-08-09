@@ -12,9 +12,6 @@ function AppHeader() {
           <Link className="app-header__link" to="/search">
             검색
           </Link>
-          <Link className="app-header__link" to="/login">
-            로그인
-          </Link>
         </nav>
       </div>
     </header>

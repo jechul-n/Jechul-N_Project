@@ -12,6 +12,8 @@ const FALLBACK_PLACE_SEARCH_QUERY_TEMPLATES = {
   해산물: ["{keyword} 맛집", "{keyword} 전문점", "{keyword} 시장"],
 };
 
+const FRUIT_DERIVED_SEARCH_QUERY_TEMPLATES = ["{keyword} 주스", "{keyword} 디저트"];
+
 function ensureKakaoApiKey() {
   if (!process.env.KAKAO_REST_API_KEY) {
     throw new AppError("서버에 카카오 REST API 키가 없습니다.", 500);
@@ -23,8 +25,15 @@ function buildPlaceSearchQueries(item) {
     .map((query) => String(query || "").trim())
     .filter(Boolean);
 
+  const derivedQueries =
+    item.category === "과일"
+      ? FRUIT_DERIVED_SEARCH_QUERY_TEMPLATES.map((template) =>
+          template.replace("{keyword}", item.keyword)
+        )
+      : [];
+
   if (databaseQueries.length > 0) {
-    return [...new Set(databaseQueries)];
+    return [...new Set([...databaseQueries, ...derivedQueries])];
   }
 
   const templates = FALLBACK_PLACE_SEARCH_QUERY_TEMPLATES[item.category] || [
@@ -32,7 +41,12 @@ function buildPlaceSearchQueries(item) {
     "{keyword} 관련 장소",
   ];
 
-  return [...new Set(templates.map((template) => template.replace("{keyword}", item.keyword)))];
+  return [
+    ...new Set([
+      ...templates.map((template) => template.replace("{keyword}", item.keyword)),
+      ...derivedQueries,
+    ]),
+  ];
 }
 
 function createRelatedPlaceQueries(keyword, category) {

@@ -1,4 +1,4 @@
-export const SEASONAL_CATEGORIES = ["과일", "채소", "수산물", "꽃"] as const;
+export const SEASONAL_CATEGORIES = ["과일", "해산물", "채소"] as const;
 
 export type SeasonalCategory = (typeof SEASONAL_CATEGORIES)[number];
 export type SeasonalCategoryFilter = "전체" | SeasonalCategory;
@@ -12,8 +12,11 @@ export interface SeasonalInfo {
 }
 
 export interface SeasonalItem {
+  id: number;
   keyword: string;
   category: SeasonalCategory;
-  season: string;
   availableMonths: number[];
+  featured: boolean;
+  mapEnabled: boolean;
+  searchQueries: string[];
 }

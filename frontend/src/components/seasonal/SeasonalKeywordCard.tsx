@@ -14,7 +14,9 @@ function SeasonalKeywordCard({ item }: SeasonalKeywordCardProps) {
     >
       <span className="seasonal-keyword-card__category">{item.category}</span>
       <strong className="seasonal-keyword-card__title">{item.keyword}</strong>
-      <span className="seasonal-keyword-card__season">{item.season}</span>
+      <span className="seasonal-keyword-card__season">
+        {item.availableMonths.map((month) => `${month}월`).join(", ")}
+      </span>
     </Link>
   );
 }

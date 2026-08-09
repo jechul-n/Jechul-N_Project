@@ -32,36 +32,13 @@ const menus = [
   },
 ];
 
-const FEATURED_CATEGORY_ORDER = ["과일", "채소", "수산물", "채소"] as const;
-
-function getFeaturedItems(items: SeasonalItem[]): SeasonalItem[] {
-  const featuredItems: SeasonalItem[] = [];
-
-  for (const category of FEATURED_CATEGORY_ORDER) {
-    const item = items.find(
-      (currentItem) =>
-        currentItem.category === category &&
-        !featuredItems.some(
-          (featuredItem) => featuredItem.keyword === currentItem.keyword
-        )
-    );
-
-    if (item) {
-      featuredItems.push(item);
-    }
-  }
-
-  return [...featuredItems, ...items.filter((item) => !featuredItems.includes(item))].slice(
-    0,
-    4
-  );
-}
+const MONTH_SEARCH_PATTERN = /^(1[0-2]|[1-9])월$/;
 
 function HomePage() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [serverMessage, setServerMessage] = useState("서버 확인 중");
-  const [items, setItems] = useState<SeasonalItem[]>([]);
+  const [featuredItems, setFeaturedItems] = useState<SeasonalItem[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [itemsError, setItemsError] = useState("");
 
@@ -91,7 +68,7 @@ function HomePage() {
 
     getCurrentSeasonalItems()
       .then((data) => {
-        setItems(data.items);
+        setFeaturedItems(data.featured);
       })
       .catch(() => {
         setItemsError("이번 달 제철 추천을 불러오지 못했습니다.");
@@ -106,11 +83,19 @@ function HomePage() {
   }, []);
 
   const handleSearch = (searchKeyword: string) => {
-    if (!searchKeyword) {
+    const trimmedKeyword = searchKeyword.trim();
+
+    if (!trimmedKeyword) {
       return;
     }
 
-    navigate(`/seasonal/${encodeURIComponent(searchKeyword)}`);
+    const monthMatch = trimmedKeyword.match(MONTH_SEARCH_PATTERN);
+    if (monthMatch) {
+      navigate(`/search?month=${monthMatch[1]}`);
+      return;
+    }
+
+    navigate(`/seasonal/${encodeURIComponent(trimmedKeyword)}`);
   };
 
   return (
@@ -127,7 +112,7 @@ function HomePage() {
         value={keyword}
         onChange={setKeyword}
         onSubmit={handleSearch}
-        placeholder="예: 딸기, 전어, 수국"
+        placeholder="예: 8월, 딸기, 전어, 감자"
       />
 
       <p
@@ -146,7 +131,7 @@ function HomePage() {
             <h2 id="current-seasonal-heading">이번 달 제철 추천</h2>
             <p>현재 달에 어울리는 제철 항목입니다.</p>
           </div>
-          <Link className="button button--text" to="/recommend">
+          <Link className="button button--text" to={`/search?month=${new Date().getMonth() + 1}`}>
             전체 보기
           </Link>
         </div>
@@ -155,7 +140,7 @@ function HomePage() {
         {itemsError ? <ErrorState message={itemsError} onRetry={loadCurrentItems} /> : null}
         {!isLoadingItems && !itemsError ? (
           <div className="card-grid">
-            {getFeaturedItems(items).map((item) => (
+            {featuredItems.map((item) => (
               <SeasonalKeywordCard key={item.keyword} item={item} />
             ))}
           </div>

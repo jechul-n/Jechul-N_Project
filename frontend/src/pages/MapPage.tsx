@@ -6,7 +6,6 @@ import FilterTabs from "../components/common/FilterTabs";
 import LoadingState from "../components/common/LoadingState";
 import SaveButton from "../components/common/SaveButton";
 import PageHeader from "../components/layout/PageHeader";
-import PlaceCard from "../components/places/PlaceCard";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { useRecentItems } from "../hooks/useRecentItems";
 import { useSavedItems } from "../hooks/useSavedItems";
@@ -18,19 +17,48 @@ import type { SeasonalCategoryFilter } from "../types/seasonal";
 const categoryOptions = [
   { label: "전체", value: "전체" },
   { label: "과일", value: "과일" },
+  { label: "해산물", value: "해산물" },
   { label: "채소", value: "채소" },
-  { label: "수산물", value: "수산물" },
-  { label: "꽃", value: "꽃" },
 ] as const;
+
+interface MapCenter {
+  latitude: number;
+  longitude: number;
+}
+
+function isSameCenter(first: MapCenter | null, second: MapCenter): boolean {
+  if (!first) {
+    return false;
+  }
+
+  return (
+    Math.abs(first.latitude - second.latitude) < 0.00002 &&
+    Math.abs(first.longitude - second.longitude) < 0.00002
+  );
+}
+
+function formatDistance(distance: number): string {
+  if (!Number.isFinite(distance) || distance <= 0) {
+    return "거리 정보 없음";
+  }
+
+  return distance < 1000 ? `${distance}m` : `${(distance / 1000).toFixed(1)}km`;
+}
 
 function MapPage() {
   const mapElementRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
+  const lastSearchCenterRef = useRef<MapCenter | null>(null);
+  const placesRequestIdRef = useRef(0);
+  const searchNearbyPlacesRef = useRef<(center: MapCenter) => void>(() => undefined);
+  const selectedCategoryRef = useRef<SeasonalCategoryFilter>("전체");
   const [maps, setMaps] = useState<KakaoMaps | null>(null);
   const [map, setMap] = useState<KakaoMap | null>(null);
   const [category, setCategory] = useState<SeasonalCategoryFilter>("전체");
+  const [searchCenter, setSearchCenter] = useState<MapCenter | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [showReSearch, setShowReSearch] = useState(false);
   const [mapError, setMapError] = useState("");
   const [placesError, setPlacesError] = useState("");
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
@@ -43,6 +71,65 @@ function MapPage() {
   const { hasPlace, savePlace } = useSavedItems();
   const { recordPlace } = useRecentItems();
   const month = new Date().getMonth() + 1;
+
+  const createSavePlaceInput = useCallback((place: Place) => ({
+    placeId: place.id,
+    name: place.name,
+    address: place.address,
+    category: place.category,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    placeUrl: place.placeUrl,
+    relatedKeyword: place.relatedKeyword,
+  }), []);
+
+  const searchNearbyPlaces = useCallback(
+    (center: MapCenter) => {
+      const requestId = placesRequestIdRef.current + 1;
+      placesRequestIdRef.current = requestId;
+      lastSearchCenterRef.current = center;
+      setSearchCenter((previousCenter) =>
+        isSameCenter(previousCenter, center) ? previousCenter : center
+      );
+      setShowReSearch(false);
+      setIsLoadingPlaces(true);
+      setPlacesError("");
+
+      getMapPlaces({
+        latitude: center.latitude,
+        longitude: center.longitude,
+        month,
+        category: category === "전체" ? undefined : category,
+      })
+        .then((data) => {
+          if (placesRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          setPlaces(data.places);
+          setSelectedPlace(null);
+        })
+        .catch((error: unknown) => {
+          if (placesRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          setPlacesError(
+            error instanceof Error ? error.message : "주변 장소를 불러오지 못했습니다."
+          );
+        })
+        .finally(() => {
+          if (placesRequestIdRef.current === requestId) {
+            setIsLoadingPlaces(false);
+          }
+        });
+    },
+    [category, month]
+  );
+
+  useEffect(() => {
+    searchNearbyPlacesRef.current = searchNearbyPlaces;
+  }, [searchNearbyPlaces]);
 
   useEffect(() => {
     let isActive = true;
@@ -86,50 +173,56 @@ function MapPage() {
       return;
     }
 
-    const position = new maps.LatLng(location.latitude, location.longitude);
+    const center = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+    };
+    const position = new maps.LatLng(center.latitude, center.longitude);
     const marker = new maps.Marker({ position });
     map.setCenter(position);
     marker.setMap(map);
+    searchNearbyPlacesRef.current(center);
 
     return () => {
       marker.setMap(null);
     };
   }, [location, map, maps]);
 
-  const loadPlaces = useCallback(() => {
-    if (!location) {
-      requestLocation();
+  useEffect(() => {
+    if (selectedCategoryRef.current === category) {
       return;
     }
 
-    setIsLoadingPlaces(true);
-    setPlacesError("");
+    selectedCategoryRef.current = category;
 
-    getMapPlaces({
-      latitude: location.latitude,
-      longitude: location.longitude,
-      month,
-      category: category === "전체" ? undefined : category,
-    })
-      .then((data) => {
-        setPlaces(data.places);
-        setSelectedPlace(null);
-      })
-      .catch((error: unknown) => {
-        setPlacesError(
-          error instanceof Error ? error.message : "주변 장소를 불러오지 못했습니다."
-        );
-      })
-      .finally(() => {
-        setIsLoadingPlaces(false);
-      });
-  }, [category, location, month, requestLocation]);
+    if (searchCenter) {
+      searchNearbyPlaces(searchCenter);
+    }
+  }, [category, searchCenter, searchNearbyPlaces]);
 
   useEffect(() => {
-    if (locationStatus === "success" && location) {
-      loadPlaces();
+    if (!maps || !map) {
+      return;
     }
-  }, [loadPlaces, location, locationStatus]);
+
+    const handleIdle = () => {
+      const center = map.getCenter();
+      const currentCenter = {
+        latitude: center.getLat(),
+        longitude: center.getLng(),
+      };
+
+      if (lastSearchCenterRef.current) {
+        setShowReSearch(!isSameCenter(lastSearchCenterRef.current, currentCenter));
+      }
+    };
+
+    maps.event.addListener(map, "idle", handleIdle);
+
+    return () => {
+      maps.event.removeListener(map, "idle", handleIdle);
+    };
+  }, [map, maps]);
 
   useEffect(() => {
     if (!maps || !map) {
@@ -152,15 +245,32 @@ function MapPage() {
     };
   }, [map, maps, places]);
 
-  const createSavePlaceInput = (place: Place) => ({
-    placeId: place.id,
-    name: place.name,
-    address: place.address,
-    category: place.category,
-    latitude: place.latitude,
-    longitude: place.longitude,
-    placeUrl: place.placeUrl,
-  });
+  const handleCurrentLocation = () => {
+    setShowReSearch(false);
+    requestLocation();
+  };
+
+  const handleReSearch = () => {
+    if (!map) {
+      return;
+    }
+
+    const center = map.getCenter();
+    searchNearbyPlaces({
+      latitude: center.getLat(),
+      longitude: center.getLng(),
+    });
+  };
+
+  const relatedKeywords = selectedPlace
+    ? [
+        ...new Set(
+          selectedPlace.relatedKeywords?.length
+            ? selectedPlace.relatedKeywords
+            : [selectedPlace.relatedKeyword].filter(Boolean)
+        ),
+      ]
+    : [];
 
   return (
     <section className="page map-page">
@@ -168,47 +278,118 @@ function MapPage() {
         title="제철 지도"
         description="이번 달 제철 장소를 현재 위치 주변에서 확인합니다."
       />
-      <FilterTabs
-        ariaLabel="지도 장소 카테고리"
-        options={categoryOptions}
-        value={category}
-        onChange={setCategory}
-      />
-      <button className="button button--secondary" type="button" onClick={requestLocation}>
-        현재 위치로 이동
-      </button>
-      <div ref={mapElementRef} className="map-page__canvas" />
 
-      {mapError ? <ErrorState message={mapError} /> : null}
-      {locationStatus === "loading" ? (
-        <LoadingState message="현재 위치를 확인하고 있습니다." />
-      ) : null}
-      {["denied", "unavailable", "timeout", "unsupported", "error"].includes(locationStatus) ? (
-        <ErrorState message={locationError || "현재 위치를 확인하지 못했습니다."} onRetry={requestLocation} />
-      ) : null}
-      {isLoadingPlaces ? <LoadingState message="주변 제철 장소를 찾고 있습니다." /> : null}
-      {placesError ? <ErrorState message={placesError} onRetry={loadPlaces} /> : null}
-      {!isLoadingPlaces && !placesError && locationStatus === "success" && places.length === 0 ? (
-        <p className="muted-text">현재 위치 주변에서 관련 장소를 찾지 못했습니다.</p>
-      ) : null}
+      <div className="map-page__viewport">
+        <div ref={mapElementRef} className="map-page__canvas" />
 
-      {selectedPlace ? (
-        <section className="page-section" aria-labelledby="selected-place-heading">
-          <div className="section-heading">
-            <h2 id="selected-place-heading">선택한 장소</h2>
+        <div className="map-page__controls">
+          <FilterTabs
+            ariaLabel="지도 장소 카테고리"
+            options={categoryOptions}
+            value={category}
+            onChange={setCategory}
+          />
+          <button
+            className="button button--secondary map-page__location-button"
+            type="button"
+            onClick={handleCurrentLocation}
+          >
+            현재 위치로 이동
+          </button>
+        </div>
+
+        {showReSearch ? (
+          <button
+            className="button button--primary map-page__research-button"
+            type="button"
+            onClick={handleReSearch}
+          >
+            이 지역 재검색
+          </button>
+        ) : null}
+
+        {mapError ? (
+          <div className="map-page__state">
+            <ErrorState message={mapError} />
           </div>
-          <PlaceCard
-            place={selectedPlace}
-            actions={
+        ) : null}
+        {locationStatus === "loading" ? (
+          <div className="map-page__state">
+            <LoadingState message="현재 위치를 확인하고 있습니다." />
+          </div>
+        ) : null}
+        {["denied", "unavailable", "timeout", "unsupported", "error"].includes(
+          locationStatus
+        ) ? (
+          <div className="map-page__state">
+            <ErrorState
+              message={locationError || "현재 위치를 확인하지 못했습니다."}
+              onRetry={requestLocation}
+            />
+          </div>
+        ) : null}
+        {isLoadingPlaces ? (
+          <div className="map-page__state">
+            <LoadingState message="주변 제철 장소를 찾고 있습니다." />
+          </div>
+        ) : null}
+        {placesError ? (
+          <div className="map-page__state">
+            <ErrorState message={placesError} onRetry={handleReSearch} />
+          </div>
+        ) : null}
+        {!isLoadingPlaces &&
+        !placesError &&
+        locationStatus === "success" &&
+        places.length === 0 ? (
+          <p className="map-page__empty-state">
+            이번 달 제철 관련 추천 장소가 없습니다.
+          </p>
+        ) : null}
+
+        {selectedPlace ? (
+          <aside className="map-place-overlay" aria-label={`${selectedPlace.name} 상세`}>
+            <div className="map-place-overlay__heading">
+              <div>
+                <h2>{selectedPlace.name}</h2>
+                <p>{selectedPlace.category}</p>
+              </div>
+              <button
+                className="button button--text"
+                type="button"
+                onClick={() => setSelectedPlace(null)}
+              >
+                닫기
+              </button>
+            </div>
+            {relatedKeywords.length > 0 ? (
+              <p className="map-place-overlay__seasonal">
+                {month}월 제철 · {relatedKeywords.join(" · ")}
+              </p>
+            ) : null}
+            <p>현재 검색 중심에서 {formatDistance(selectedPlace.distance)}</p>
+            <p>{selectedPlace.address || "주소 정보 없음"}</p>
+            {selectedPlace.phone ? <p>{selectedPlace.phone}</p> : null}
+            <div className="map-place-overlay__actions">
               <SaveButton
                 isSaved={hasPlace(selectedPlace.id)}
                 onClick={() => savePlace(createSavePlaceInput(selectedPlace))}
               />
-            }
-            onOpen={() => recordPlace(createSavePlaceInput(selectedPlace))}
-          />
-        </section>
-      ) : null}
+              {selectedPlace.placeUrl ? (
+                <a
+                  className="button button--primary"
+                  href={selectedPlace.placeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => recordPlace(createSavePlaceInput(selectedPlace))}
+                >
+                  카카오맵에서 보기
+                </a>
+              ) : null}
+            </div>
+          </aside>
+        ) : null}
+      </div>
     </section>
   );
 }

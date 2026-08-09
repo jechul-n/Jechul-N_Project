@@ -1,4 +1,10 @@
-const { SEASONAL_ITEMS } = require("../data/seasonalItems");
+const {
+  MONTHLY_FEATURED,
+  SEASONAL_ITEMS,
+} = require("../data/seasonalItems");
+
+const DEFAULT_FEATURED_KEYWORD_COUNT = 5;
+const MAX_FEATURED_KEYWORDS = 5;
 
 function getSeasonalItems({ month, category }) {
   return SEASONAL_ITEMS.filter(
@@ -6,6 +12,27 @@ function getSeasonalItems({ month, category }) {
       item.availableMonths.includes(month) &&
       (!category || item.category === category)
   );
+}
+
+function getFeaturedSeasonalItems({
+  month,
+  limit = DEFAULT_FEATURED_KEYWORD_COUNT,
+}) {
+  const itemsByKeyword = new Map(
+    getSeasonalItems({ month }).map((item) => [item.keyword, item])
+  );
+  const maximum = Math.min(Math.max(limit, 1), MAX_FEATURED_KEYWORDS);
+  const monthlyItems = (MONTHLY_FEATURED[month] || [])
+    .map((keyword) => itemsByKeyword.get(keyword))
+    .filter(Boolean);
+
+  if (monthlyItems.length > 0) {
+    return monthlyItems.slice(0, maximum);
+  }
+
+  return getSeasonalItems({ month })
+    .filter((item) => item.featured)
+    .slice(0, maximum);
 }
 
 function findSeasonalItem(keyword) {
@@ -18,7 +45,9 @@ function findSeasonalItem(keyword) {
 
 function createFallbackSeasonalInfo(keyword, seasonalItem) {
   const category = seasonalItem?.category || "과일";
-  const season = seasonalItem?.season || "제철 시기 정보 확인 필요";
+  const season = seasonalItem?.availableMonths?.length
+    ? seasonalItem.availableMonths.map((month) => `${month}월`).join(", ")
+    : "제철 시기 정보 확인 필요";
 
   return {
     category,
@@ -32,5 +61,6 @@ function createFallbackSeasonalInfo(keyword, seasonalItem) {
 module.exports = {
   createFallbackSeasonalInfo,
   findSeasonalItem,
+  getFeaturedSeasonalItems,
   getSeasonalItems,
 };

@@ -8,6 +8,8 @@ export interface Place {
   latitude: number;
   longitude: number;
   placeUrl: string;
+  relatedKeyword?: string;
+  relatedKeywords?: string[];
 }
 
 export interface DiscoverResult {

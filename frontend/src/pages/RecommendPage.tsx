@@ -14,9 +14,8 @@ import type {
 const categoryOptions = [
   { label: "전체", value: "전체" },
   { label: "과일", value: "과일" },
+  { label: "해산물", value: "해산물" },
   { label: "채소", value: "채소" },
-  { label: "수산물", value: "수산물" },
-  { label: "꽃", value: "꽃" },
 ] as const;
 
 function RecommendPage() {

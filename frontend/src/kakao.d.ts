@@ -24,6 +24,7 @@ export interface KakaoLatLng {
 
 export interface KakaoMap {
   setCenter(position: KakaoLatLng): void;
+  getCenter(): KakaoLatLng;
 }
 
 export interface KakaoMapOptions {
@@ -49,4 +50,10 @@ export interface KakaoInfoWindow {
 
 export interface KakaoEvent {
   addListener(target: KakaoMarker, eventName: "click", handler: () => void): void;
+  addListener(target: KakaoMap, eventName: "idle", handler: () => void): void;
+  removeListener(
+    target: KakaoMarker | KakaoMap,
+    eventName: "click" | "idle",
+    handler: () => void
+  ): void;
 }

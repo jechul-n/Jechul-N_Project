@@ -1,13 +1,27 @@
-const { searchRelatedPlaces, removeDuplicatePlaces } = require("../services/kakaoService");
-const { getSeasonalItems } = require("../services/seasonalService");
+const { searchSeasonalMapPlaces } = require("../services/kakaoService");
+const {
+  getFeaturedSeasonalItems,
+} = require("../services/seasonalService");
 const {
   getCoordinates,
   getOptionalCategory,
   getOptionalMonth,
 } = require("../utils/validation");
 
-const MAX_MAP_KEYWORDS = 4;
+const MAX_FEATURED_KEYWORDS = 5;
+const MAX_PLACES_PER_SEARCH_QUERY = 3;
 const MAX_MAP_PLACES = 20;
+
+function getMapFeaturedItems({ month, category }) {
+  const featuredItems = getFeaturedSeasonalItems({
+    month,
+    limit: MAX_FEATURED_KEYWORDS,
+  });
+
+  return featuredItems.filter(
+    (item) => item.mapEnabled && (!category || item.category === category)
+  );
+}
 
 async function getMapPlaces(request, response, next) {
   try {
@@ -17,34 +31,20 @@ async function getMapPlaces(request, response, next) {
     );
     const month = getOptionalMonth(request.query.month);
     const category = getOptionalCategory(request.query.category);
-    const seasonalItems = getSeasonalItems({ month, category }).slice(
-      0,
-      MAX_MAP_KEYWORDS
-    );
-    const results = await Promise.allSettled(
-      seasonalItems.map((item) =>
-        searchRelatedPlaces({
-          keyword: item.keyword,
-          category: item.category,
-          latitude,
-          longitude,
-          limit: 5,
-          size: 3,
-        })
-      )
-    );
-    const places = removeDuplicatePlaces(
-      results
-        .filter((result) => result.status === "fulfilled")
-        .flatMap((result) => result.value)
-    )
-      .sort((firstPlace, secondPlace) => firstPlace.distance - secondPlace.distance)
-      .slice(0, MAX_MAP_PLACES);
+    const seasonalItems = getMapFeaturedItems({ month, category });
+    const places = await searchSeasonalMapPlaces({
+      items: seasonalItems,
+      latitude,
+      longitude,
+      limit: MAX_MAP_PLACES,
+      size: MAX_PLACES_PER_SEARCH_QUERY,
+    });
 
     response.json({
       success: true,
       month,
       category: category || "전체",
+      featured: seasonalItems,
       keywords: seasonalItems.map((item) => item.keyword),
       places,
     });
@@ -54,5 +54,9 @@ async function getMapPlaces(request, response, next) {
 }
 
 module.exports = {
+  MAX_FEATURED_KEYWORDS,
+  MAX_MAP_PLACES,
+  MAX_PLACES_PER_SEARCH_QUERY,
+  getMapFeaturedItems,
   getMapPlaces,
 };

@@ -9,7 +9,7 @@ const seasonalInfoSchema = {
   properties: {
     category: {
       type: Type.STRING,
-      description: "과일, 채소, 수산물, 꽃 중 하나",
+      description: "고정 제철 DB에서 전달된 카테고리",
     },
     season: {
       type: Type.STRING,
@@ -67,14 +67,10 @@ function toStringArray(value) {
 
 function parseSeasonalInfo(rawText, keyword, fallbackInfo) {
   const parsed = JSON.parse(removeCodeFence(rawText));
-  const category = toStringValue(parsed?.category, fallbackInfo.category);
-  const validCategory = ["과일", "채소", "수산물", "꽃"].includes(category)
-    ? category
-    : fallbackInfo.category;
 
   return {
-    category: validCategory,
-    season: toStringValue(parsed?.season, fallbackInfo.season),
+    category: fallbackInfo.category,
+    season: fallbackInfo.season,
     description: toStringValue(parsed?.description, fallbackInfo.description),
     benefits: toStringArray(parsed?.benefits),
     relatedFoods: toStringArray(parsed?.relatedFoods),
@@ -85,7 +81,7 @@ async function createSeasonalInfo(keyword, seasonalItem) {
   const fallbackInfo = createFallbackSeasonalInfo(keyword, seasonalItem);
   const response = await getClient().models.generateContent({
     model: process.env.GEMINI_MODEL || "gemini-flash-latest",
-    contents: `한국의 제철 정보 서비스에 사용할 정보를 작성해 주세요.\n\n검색어: ${keyword}\n\n반드시 한국어 JSON만 반환하세요. category는 과일, 채소, 수산물, 꽃 중 하나여야 하며, 계절이나 특징이 확실하지 않다면 추측하지 말고 보수적으로 작성하세요.`,
+    contents: `한국의 제철 정보 서비스에 사용할 정보를 작성해 주세요.\n\n검색어: ${keyword}\n\n반드시 한국어 JSON만 반환하세요. 카테고리와 제철 시기는 고정 제철 DB가 제공하므로 변경하지 말고, 계절이나 특징이 확실하지 않다면 추측하지 말고 보수적으로 작성하세요.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: seasonalInfoSchema,

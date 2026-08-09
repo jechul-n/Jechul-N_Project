@@ -1,10 +1,15 @@
 const { AppError } = require("../utils/errors");
 
-const QUERY_TEMPLATES = {
+const RELATED_PLACE_QUERY_TEMPLATES = {
   과일: ["{keyword} 카페", "{keyword} 디저트", "{keyword} 전문점"],
   채소: ["{keyword} 요리", "{keyword} 전문점", "{keyword} 직거래"],
-  수산물: ["{keyword} 맛집", "{keyword} 전문점", "{keyword} 시장"],
-  꽃: ["{keyword} 명소", "{keyword} 식물원", "{keyword} 공원", "{keyword} 축제"],
+  해산물: ["{keyword} 맛집", "{keyword} 전문점", "{keyword} 시장"],
+};
+
+const FALLBACK_PLACE_SEARCH_QUERY_TEMPLATES = {
+  과일: ["{keyword} 카페", "{keyword} 디저트", "{keyword} 케이크", "{keyword} 농장"],
+  채소: ["{keyword} 맛집", "{keyword} 한식", "{keyword} 카페"],
+  해산물: ["{keyword} 맛집", "{keyword} 전문점", "{keyword} 시장"],
 };
 
 function ensureKakaoApiKey() {
@@ -13,13 +18,47 @@ function ensureKakaoApiKey() {
   }
 }
 
-function createPlaceQueries(keyword, category) {
-  const templates = QUERY_TEMPLATES[category] || [
+function buildPlaceSearchQueries(item) {
+  const databaseQueries = (item.searchQueries || [])
+    .map((query) => String(query || "").trim())
+    .filter(Boolean);
+
+  if (databaseQueries.length > 0) {
+    return [...new Set(databaseQueries)];
+  }
+
+  const templates = FALLBACK_PLACE_SEARCH_QUERY_TEMPLATES[item.category] || [
+    "{keyword} 전문점",
+    "{keyword} 관련 장소",
+  ];
+
+  return [...new Set(templates.map((template) => template.replace("{keyword}", item.keyword)))];
+}
+
+function createRelatedPlaceQueries(keyword, category) {
+  const templates = RELATED_PLACE_QUERY_TEMPLATES[category] || [
     "{keyword} 전문점",
     "{keyword} 관련 장소",
   ];
 
   return templates.map((template) => template.replace("{keyword}", keyword));
+}
+
+function buildMapSearchQueryGroups(items) {
+  const groupedQueries = new Map();
+
+  for (const item of items) {
+    for (const query of buildPlaceSearchQueries(item)) {
+      const relatedKeywords = groupedQueries.get(query) || new Set();
+      relatedKeywords.add(item.keyword);
+      groupedQueries.set(query, relatedKeywords);
+    }
+  }
+
+  return [...groupedQueries.entries()].map(([query, relatedKeywords]) => ({
+    query,
+    relatedKeywords: [...relatedKeywords],
+  }));
 }
 
 async function searchKakaoPlaces({ query, latitude, longitude, size = 5 }) {
@@ -48,7 +87,13 @@ async function searchKakaoPlaces({ query, latitude, longitude, size = 5 }) {
   return Array.isArray(data.documents) ? data.documents : [];
 }
 
-function normalizePlace(place) {
+function normalizePlace(place, relatedKeyword) {
+  const relatedKeywords = [
+    ...new Set(
+      (Array.isArray(relatedKeyword) ? relatedKeyword : [relatedKeyword]).filter(Boolean)
+    ),
+  ];
+
   return {
     id: String(place.id),
     name: place.place_name || "이름 정보 없음",
@@ -59,53 +104,132 @@ function normalizePlace(place) {
     latitude: Number(place.y),
     longitude: Number(place.x),
     placeUrl: place.place_url || "",
+    relatedKeyword: relatedKeywords[0] || "",
+    relatedKeywords,
   };
+}
+
+function getRelatedKeywords(place) {
+  return [...new Set([
+    ...(Array.isArray(place.relatedKeywords) ? place.relatedKeywords : []),
+    place.relatedKeyword,
+  ].filter(Boolean))];
+}
+
+function isRestaurantPlace(place) {
+  return String(place.category_name || "").includes("음식점");
 }
 
 function removeDuplicatePlaces(places) {
   const placeMap = new Map();
 
   for (const place of places) {
-    if (!placeMap.has(place.id)) {
-      placeMap.set(place.id, place);
+    const existingPlace = placeMap.get(place.id);
+
+    if (!existingPlace) {
+      const relatedKeywords = getRelatedKeywords(place);
+      placeMap.set(place.id, {
+        ...place,
+        relatedKeyword: relatedKeywords[0] || "",
+        relatedKeywords,
+      });
+      continue;
     }
+
+    const relatedKeywords = [...new Set([
+      ...getRelatedKeywords(existingPlace),
+      ...getRelatedKeywords(place),
+    ])];
+    placeMap.set(place.id, {
+      ...existingPlace,
+      relatedKeyword: relatedKeywords[0] || "",
+      relatedKeywords,
+    });
   }
 
   return [...placeMap.values()];
 }
 
-async function searchRelatedPlaces({
+async function searchPlaces({
   keyword,
-  category,
   latitude,
   longitude,
+  queries,
+  placeFilter = () => true,
   limit = 10,
   size = 5,
 }) {
   ensureKakaoApiKey();
 
-  const queries = createPlaceQueries(keyword, category);
   const results = await Promise.allSettled(
     queries.map((query) =>
       searchKakaoPlaces({ query, latitude, longitude, size })
     )
   );
-  const fulfilledResults = results
-    .filter((result) => result.status === "fulfilled")
-    .flatMap((result) => result.value);
+  const successfulResults = results.filter((result) => result.status === "fulfilled");
+  const fulfilledResults = successfulResults.flatMap((result) => result.value);
 
-  if (fulfilledResults.length === 0) {
+  if (successfulResults.length === 0) {
     const failedResult = results.find((result) => result.status === "rejected");
     throw failedResult?.reason || new Error("카카오 장소 검색에 실패했습니다.");
   }
 
-  return removeDuplicatePlaces(fulfilledResults.map(normalizePlace))
+  return removeDuplicatePlaces(
+    fulfilledResults.filter(placeFilter).map((place) => normalizePlace(place, keyword))
+  )
+    .sort((firstPlace, secondPlace) => firstPlace.distance - secondPlace.distance)
+    .slice(0, limit);
+}
+
+function searchRelatedPlaces({ keyword, category, ...options }) {
+  return searchPlaces({
+    keyword,
+    queries: createRelatedPlaceQueries(keyword, category),
+    placeFilter: isRestaurantPlace,
+    ...options,
+  });
+}
+
+async function searchSeasonalMapPlaces({
+  items,
+  latitude,
+  longitude,
+  limit = 20,
+  size = 3,
+}) {
+  if (items.length === 0) {
+    return [];
+  }
+
+  ensureKakaoApiKey();
+
+  const queryGroups = buildMapSearchQueryGroups(items);
+  const results = await Promise.allSettled(
+    queryGroups.map(({ query }) => searchKakaoPlaces({ query, latitude, longitude, size }))
+  );
+  const successfulResults = results
+    .map((result, index) => ({ result, queryGroup: queryGroups[index] }))
+    .filter(({ result }) => result.status === "fulfilled");
+
+  if (successfulResults.length === 0) {
+    const failedResult = results.find((result) => result.status === "rejected");
+    throw failedResult?.reason || new Error("카카오 장소 검색에 실패했습니다.");
+  }
+
+  return removeDuplicatePlaces(
+    successfulResults.flatMap(({ result, queryGroup }) =>
+      result.value.map((place) => normalizePlace(place, queryGroup.relatedKeywords))
+    )
+  )
     .sort((firstPlace, secondPlace) => firstPlace.distance - secondPlace.distance)
     .slice(0, limit);
 }
 
 module.exports = {
+  buildMapSearchQueryGroups,
+  buildPlaceSearchQueries,
   ensureKakaoApiKey,
   removeDuplicatePlaces,
   searchRelatedPlaces,
+  searchSeasonalMapPlaces,
 };

@@ -8,6 +8,7 @@ function AppLayout() {
   const isFigmaDesignedPage =
     pathname === "/" ||
     pathname === "/saved" ||
+    pathname === "/recent" ||
     pathname === "/search" ||
     pathname === "/recommend" ||
     pathname.startsWith("/seasonal/");

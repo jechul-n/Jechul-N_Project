@@ -56,9 +56,10 @@ function HomePage() {
       </header>
 
       <section className="home-page__seasonal" aria-labelledby="current-seasonal-heading">
-        <h2 id="current-seasonal-heading" className="screen-reader-only">
-          {month}월 제철 추천
-        </h2>
+        <div className="home-magazine__heading home-page__seasonal-heading">
+          <h2 id="current-seasonal-heading">{month}월 제철 추천</h2>
+          <Link to={`/search?month=${month}`}>더보기 &gt;</Link>
+        </div>
         {isLoadingItems ? <LoadingState message="이번 달 제철 항목을 불러오는 중입니다." /> : null}
         {itemsError ? <ErrorState message={itemsError} onRetry={loadCurrentItems} /> : null}
         {!isLoadingItems && !itemsError ? (

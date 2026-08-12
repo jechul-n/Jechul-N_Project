@@ -4,18 +4,22 @@ import mapIcon from "../../assets/figma/icon-saved-map.svg";
 import searchIcon from "../../assets/figma/icon-saved-search.svg";
 import savedBagImage from "../../assets/saved-bag.png";
 
-function SavedEmptyState() {
+interface SavedEmptyStateProps {
+  title?: string;
+  description?: string;
+}
+
+function SavedEmptyState({
+  title = "아직 저장한 항목이 없어요",
+  description = "마음에 드는 제철 정보나 장소를 저장하면\n여기에서 쉽게 확인할 수 있어요.",
+}: SavedEmptyStateProps) {
   return (
     <section className="saved-empty-state" aria-labelledby="saved-empty-title">
       <h2 id="saved-empty-title" className="saved-empty-state__title">
-        아직 저장한 항목이 없어요
+        {title}
       </h2>
       <img className="saved-empty-state__image" src={savedBagImage} alt="" />
-      <p className="saved-empty-state__description">
-        마음에 드는 제철 정보나 장소를 저장하면
-        <br />
-        여기에서 쉽게 확인할 수 있어요.
-      </p>
+      <p className="saved-empty-state__description">{description}</p>
       <div className="saved-empty-state__actions">
         <Link className="saved-empty-state__button saved-empty-state__button--primary" to="/map">
           <img src={mapIcon} alt="" />

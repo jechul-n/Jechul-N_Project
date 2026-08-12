@@ -122,7 +122,7 @@ function SearchPage() {
         value={keyword}
         onChange={setKeyword}
         onSubmit={searchKeyword}
-        placeholder="예: 딸기, 전어 수국"
+        placeholder="예: 8월, 딸기, 전어 수국"
         variant="figma"
       />
       {errorMessage ? <p className="form-message form-message--error">{errorMessage}</p> : null}

@@ -2,25 +2,22 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getCurrentSeasonalItems } from "../api/seasonalApi";
-import calendarPreviewImage from "../assets/figma/icon-home-calendar.svg";
-import navigationIcon from "../assets/figma/icon-home-navigation.svg";
+import calendarButtonImage from "../assets/figma/home-menu/calendar-button.png";
+import mapButtonImage from "../assets/figma/home-menu/map-button.png";
+import recentButtonImage from "../assets/figma/home-menu/recent-button.png";
+import savedButtonImage from "../assets/figma/home-menu/saved-button.png";
 import searchIcon from "../assets/figma/icon-home-search.svg";
-import mapPreviewImage from "../assets/figma/home-raw-8.png";
 import MagazineCard from "../components/magazine/MagazineCard";
 import ErrorState from "../components/common/ErrorState";
 import LoadingState from "../components/common/LoadingState";
 import SeasonalCircleItem from "../components/seasonal/SeasonalCircleItem";
 import { magazineItems } from "../data/magazineItems";
-import { useRecentItems } from "../hooks/useRecentItems";
-import { useSavedItems } from "../hooks/useSavedItems";
 import type { SeasonalItem } from "../types/seasonal";
 
 function HomePage() {
   const [featuredItems, setFeaturedItems] = useState<SeasonalItem[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [itemsError, setItemsError] = useState("");
-  const { items: savedItems } = useSavedItems();
-  const { items: recentItems } = useRecentItems();
   const month = new Date().getMonth() + 1;
 
   const loadCurrentItems = () => {
@@ -75,21 +72,16 @@ function HomePage() {
         <h2 id="main-menu-heading" className="screen-reader-only">주요 메뉴</h2>
         <div className="home-menu-grid">
           <Link className="home-menu-card home-menu-card--map" to="/map">
-            <img className="home-menu-card__map-image" src={mapPreviewImage} alt="" />
-            <strong>제철 지도</strong>
-            <img className="home-menu-card__navigation-icon" src={navigationIcon} alt="" />
+            <img className="home-menu-card__button-image" src={mapButtonImage} alt="제철 지도" />
           </Link>
           <Link className="home-menu-card home-menu-card--recommend" to="/recommend">
-            <img className="home-menu-card__calendar-image" src={calendarPreviewImage} alt="" />
-            <strong>제철 달력</strong>
+            <img className="home-menu-card__button-image" src={calendarButtonImage} alt="제철 달력" />
           </Link>
           <Link className="home-menu-card home-menu-card--saved" to="/saved">
-            <span>저장한<br />항목</span>
-            {savedItems.length > 0 ? <strong className="home-menu-card__count">{savedItems.length}</strong> : null}
+            <img className="home-menu-card__button-image" src={savedButtonImage} alt="저장한 항목" />
           </Link>
           <Link className="home-menu-card home-menu-card--recent" to="/recent">
-            <span>최근 본<br />항목</span>
-            {recentItems.length > 0 ? <strong className="home-menu-card__count">{recentItems.length}</strong> : null}
+            <img className="home-menu-card__button-image" src={recentButtonImage} alt="최근 본 항목" />
           </Link>
         </div>
       </section>

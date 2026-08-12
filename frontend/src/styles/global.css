@@ -34,6 +34,12 @@ input {
   padding: var(--space-6) var(--space-4) calc(var(--bottom-navigation-height) + var(--space-6));
 }
 
+.app-shell--figma-screen .app-main {
+  width: min(100%, 27rem);
+  min-height: 100svh;
+  padding: 3.25rem 1.5rem 2.5rem;
+}
+
 .page {
   display: grid;
   gap: var(--space-6);

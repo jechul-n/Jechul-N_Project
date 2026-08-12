@@ -1,61 +1,27 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
-import { getHealth } from "../api/healthApi";
 import { getCurrentSeasonalItems } from "../api/seasonalApi";
+import calendarPreviewImage from "../assets/figma/icon-home-calendar.svg";
+import navigationIcon from "../assets/figma/icon-home-navigation.svg";
+import searchIcon from "../assets/figma/icon-home-search.svg";
+import mapPreviewImage from "../assets/figma/home-raw-8.png";
+import MagazineCard from "../components/magazine/MagazineCard";
 import ErrorState from "../components/common/ErrorState";
 import LoadingState from "../components/common/LoadingState";
-import SearchInput from "../components/common/SearchInput";
-import SeasonalKeywordCard from "../components/seasonal/SeasonalKeywordCard";
+import SeasonalCircleItem from "../components/seasonal/SeasonalCircleItem";
+import { magazineItems } from "../data/magazineItems";
+import { useRecentItems } from "../hooks/useRecentItems";
+import { useSavedItems } from "../hooks/useSavedItems";
 import type { SeasonalItem } from "../types/seasonal";
 
-const menus = [
-  {
-    title: "제철 지도",
-    description: "내 주변의 제철 장소를 지도에서 확인해요.",
-    path: "/map",
-  },
-  {
-    title: "저장한 항목",
-    description: "저장한 제철 키워드와 장소를 확인해요.",
-    path: "/saved",
-  },
-  {
-    title: "최근 본 항목",
-    description: "최근에 확인한 키워드와 장소를 다시 봐요.",
-    path: "/recent",
-  },
-];
-
-const MONTH_SEARCH_PATTERN = /^(1[0-2]|[1-9])월$/;
-
 function HomePage() {
-  const navigate = useNavigate();
-  const [keyword, setKeyword] = useState("");
-  const [serverMessage, setServerMessage] = useState("서버 확인 중");
   const [featuredItems, setFeaturedItems] = useState<SeasonalItem[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [itemsError, setItemsError] = useState("");
-
-  useEffect(() => {
-    let isActive = true;
-
-    getHealth()
-      .then((data) => {
-        if (isActive) {
-          setServerMessage(data.message);
-        }
-      })
-      .catch(() => {
-        if (isActive) {
-          setServerMessage("백엔드 연결 실패");
-        }
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
+  const { items: savedItems } = useSavedItems();
+  const { items: recentItems } = useRecentItems();
+  const month = new Date().getMonth() + 1;
 
   const loadCurrentItems = () => {
     setIsLoadingItems(true);
@@ -77,81 +43,64 @@ function HomePage() {
     loadCurrentItems();
   }, []);
 
-  const handleSearch = (searchKeyword: string) => {
-    const trimmedKeyword = searchKeyword.trim();
-
-    if (!trimmedKeyword) {
-      return;
-    }
-
-    const monthMatch = trimmedKeyword.match(MONTH_SEARCH_PATTERN);
-    if (monthMatch) {
-      navigate(`/search?month=${monthMatch[1]}`);
-      return;
-    }
-
-    navigate(`/seasonal/${encodeURIComponent(trimmedKeyword)}`);
-  };
-
   return (
     <section className="page home-page">
       <header className="home-page__hero">
-        <p className="home-page__eyebrow">지금이 가장 맛있는 순간</p>
-        <h1 className="home-page__title">제철엔</h1>
-        <p className="home-page__description">
-          계절에 맞는 음식, 꽃, 축제와 주변 장소를 찾아보세요.
-        </p>
+        <div>
+          <h1 className="home-page__title">{month}월 제철 음식은...</h1>
+          <p className="home-page__description">다양한 {month}월 제철 음식을 직접 경험하세요</p>
+        </div>
+        <Link className="home-page__search-link" to="/search" aria-label="제철 검색">
+          <img src={searchIcon} alt="" />
+        </Link>
       </header>
 
-      <SearchInput
-        value={keyword}
-        onChange={setKeyword}
-        onSubmit={handleSearch}
-        placeholder="예: 8월, 딸기, 전어, 감자"
-      />
-
-      <p
-        className={
-          serverMessage === "백엔드 연결 실패"
-            ? "server-status server-status--error"
-            : "server-status"
-        }
-      >
-        서버 상태: {serverMessage}
-      </p>
-
-      <section className="page-section" aria-labelledby="current-seasonal-heading">
-        <div className="section-heading">
-          <div>
-            <h2 id="current-seasonal-heading">이번 달 제철 추천</h2>
-            <p>현재 달에 어울리는 제철 항목입니다.</p>
-          </div>
-          <Link className="button button--text" to={`/search?month=${new Date().getMonth() + 1}`}>
-            전체 보기
-          </Link>
-        </div>
-
+      <section className="home-page__seasonal" aria-labelledby="current-seasonal-heading">
+        <h2 id="current-seasonal-heading" className="screen-reader-only">
+          {month}월 제철 추천
+        </h2>
         {isLoadingItems ? <LoadingState message="이번 달 제철 항목을 불러오는 중입니다." /> : null}
         {itemsError ? <ErrorState message={itemsError} onRetry={loadCurrentItems} /> : null}
         {!isLoadingItems && !itemsError ? (
-          <div className="card-grid">
+          <div className="seasonal-circle-list">
             {featuredItems.map((item) => (
-              <SeasonalKeywordCard key={item.keyword} item={item} />
+              <SeasonalCircleItem key={item.keyword} item={item} />
             ))}
           </div>
         ) : null}
       </section>
 
-      <section className="page-section" aria-labelledby="main-menu-heading">
-        <div className="section-heading">
-          <h2 id="main-menu-heading">주요 메뉴</h2>
-        </div>
+      <section className="home-page__menu" aria-labelledby="main-menu-heading">
+        <h2 id="main-menu-heading" className="screen-reader-only">주요 메뉴</h2>
         <div className="home-menu-grid">
-          {menus.map((menu) => (
-            <Link key={menu.path} className="home-menu-card" to={menu.path}>
-              <strong>{menu.title}</strong>
-              <span>{menu.description}</span>
-            </Link>
+          <Link className="home-menu-card home-menu-card--map" to="/map">
+            <img className="home-menu-card__map-image" src={mapPreviewImage} alt="" />
+            <strong>제철 지도</strong>
+            <img className="home-menu-card__navigation-icon" src={navigationIcon} alt="" />
+          </Link>
+          <Link className="home-menu-card home-menu-card--recommend" to="/recommend">
+            <img className="home-menu-card__calendar-image" src={calendarPreviewImage} alt="" />
+            <strong>제철 달력</strong>
+          </Link>
+          <Link className="home-menu-card home-menu-card--saved" to="/saved">
+            <span>저장한<br />항목</span>
+            {savedItems.length > 0 ? <strong className="home-menu-card__count">{savedItems.length}</strong> : null}
+          </Link>
+          <Link className="home-menu-card home-menu-card--recent" to="/recent">
+            <span>최근 본<br />항목</span>
+            {recentItems.length > 0 ? <strong className="home-menu-card__count">{recentItems.length}</strong> : null}
+          </Link>
+        </div>
+      </section>
+
+      <section className="home-magazine" aria-labelledby="magazine-heading">
+        <div className="home-magazine__heading">
+          <h2 id="magazine-heading">제철 Magazine</h2>
+          <span>더보기 ›</span>
+        </div>
+        <div className="home-magazine__list">
+          {magazineItems.map((item) => (
+            <MagazineCard key={item.id} item={item} />
           ))}
         </div>
       </section>

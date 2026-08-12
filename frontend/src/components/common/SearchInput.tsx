@@ -1,5 +1,7 @@
 import type { FormEvent } from "react";
 
+import figmaSearchIcon from "../../assets/figma/icon-search-input.svg";
+
 interface SearchInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -7,6 +9,7 @@ interface SearchInputProps {
   placeholder?: string;
   buttonLabel?: string;
   disabled?: boolean;
+  variant?: "default" | "figma";
 }
 
 function SearchInput({
@@ -16,6 +19,7 @@ function SearchInput({
   placeholder = "제철 키워드를 입력해 주세요",
   buttonLabel = "검색",
   disabled = false,
+  variant = "default",
 }: SearchInputProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -23,10 +27,13 @@ function SearchInput({
   };
 
   return (
-    <form className="search-input" onSubmit={handleSubmit}>
+    <form className={variant === "figma" ? "search-input search-input--figma" : "search-input"} onSubmit={handleSubmit}>
       <label className="screen-reader-only" htmlFor="seasonal-search">
         제철 키워드
       </label>
+      {variant === "figma" ? (
+        <img className="search-input__icon" src={figmaSearchIcon} alt="" />
+      ) : null}
       <input
         id="seasonal-search"
         className="search-input__field"
@@ -36,9 +43,11 @@ function SearchInput({
         placeholder={placeholder}
         disabled={disabled}
       />
-      <button className="button button--primary" type="submit" disabled={disabled}>
-        {buttonLabel}
-      </button>
+      {variant === "default" ? (
+        <button className="button button--primary" type="submit" disabled={disabled}>
+          {buttonLabel}
+        </button>
+      ) : null}
     </form>
   );
 }

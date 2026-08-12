@@ -1,0 +1,14 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="135" height="115" viewBox="0 0 135 115" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="Group 51">
+<g id="Rectangle 29">
+<path d="M0 15C0 6.71573 6.71573 0 15 0H120C128.284 0 135 6.71573 135 15V100C135 108.284 128.284 115 120 115H15C6.71573 115 0 108.284 0 100V15Z" fill="#FEE6E6" fill-opacity="0.7"/>
+<path d="M0 15C0 6.71573 6.71573 0 15 0H120C128.284 0 135 6.71573 135 15V100C135 108.284 128.284 115 120 115H15C6.71573 115 0 108.284 0 100V15Z" fill="url(#pattern0_0_34)" fill-opacity="0.8"/>
+</g>
+</g>
+<defs>
+<pattern id="pattern0_0_34" patternUnits="userSpaceOnUse" patternTransform="matrix(147 0 0 106.5 0 0)" preserveAspectRatio="none" viewBox="0 0 147 106.5" width="1" height="1">
+<g id="pattern0_0_34_inner">
+<path id="Vector 2" d="M82.5003 0V106.5M45.0002 0V106.5M120 0V106.5M7.50024 0V106.5M1.68024e-06 63L147 63M3.0314e-06 100.5H147M0 25.5L147 25.5" stroke="#FFF7F3" stroke-width="3"/>
+</g>
+</pattern></defs>
+</svg>

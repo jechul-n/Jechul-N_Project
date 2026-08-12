@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 
 import EmptyState from "../components/common/EmptyState";
 import FilterTabs from "../components/common/FilterTabs";
-import PageHeader from "../components/layout/PageHeader";
+import BackButton from "../components/common/BackButton";
+import SavedEmptyState from "../components/saved/SavedEmptyState";
 import { useSavedItems } from "../hooks/useSavedItems";
 import type { StoredItemType } from "../types/storage";
 
@@ -23,20 +24,22 @@ function SavedPage() {
 
   return (
     <section className="page saved-page">
-      <PageHeader
-        title="저장한 항목"
-        description="저장한 제철 키워드와 장소를 최신순으로 확인합니다."
-      />
+      <header className="saved-page__header">
+        <BackButton iconOnly />
+        <h1>저장한 항목</h1>
+        <span aria-hidden="true" />
+      </header>
       <FilterTabs
         ariaLabel="저장 항목 필터"
         options={filterOptions}
         value={filter}
         onChange={setFilter}
       />
-      {filteredItems.length === 0 ? (
+      {items.length === 0 ? (
+        <SavedEmptyState />
+      ) : filteredItems.length === 0 ? (
         <EmptyState
-          title="저장한 항목이 없습니다."
-          description="제철 상세 정보와 지도에서 항목을 저장할 수 있습니다."
+          title={`저장한 ${filter === "keyword" ? "키워드" : "장소"}가 없습니다.`}
         />
       ) : (
         <ul className="stored-item-list">

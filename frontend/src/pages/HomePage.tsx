@@ -1,44 +1,26 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { getCurrentSeasonalItems } from "../api/seasonalApi";
 import calendarButtonImage from "../assets/figma/home-menu/calendar-button.png";
 import mapButtonImage from "../assets/figma/home-menu/map-button.png";
 import recentButtonImage from "../assets/figma/home-menu/recent-button.png";
 import savedButtonImage from "../assets/figma/home-menu/saved-button.png";
 import searchIcon from "../assets/figma/icon-home-search.svg";
+import abaloneButtonImage from "../assets/figma/home-seasonal/abalone-button.png";
+import cornButtonImage from "../assets/figma/home-seasonal/corn-button.png";
+import peachButtonImage from "../assets/figma/home-seasonal/peach-button.png";
+import watermelonButtonImage from "../assets/figma/home-seasonal/watermelon-button.png";
 import MagazineCard from "../components/magazine/MagazineCard";
-import ErrorState from "../components/common/ErrorState";
-import LoadingState from "../components/common/LoadingState";
-import SeasonalCircleItem from "../components/seasonal/SeasonalCircleItem";
 import { magazineItems } from "../data/magazineItems";
-import type { SeasonalItem } from "../types/seasonal";
+
+const homeSeasonalButtons = [
+  { keyword: "복숭아", image: peachButtonImage },
+  { keyword: "수박", image: watermelonButtonImage },
+  { keyword: "전복", image: abaloneButtonImage },
+  { keyword: "옥수수", image: cornButtonImage },
+];
 
 function HomePage() {
-  const [featuredItems, setFeaturedItems] = useState<SeasonalItem[]>([]);
-  const [isLoadingItems, setIsLoadingItems] = useState(true);
-  const [itemsError, setItemsError] = useState("");
   const month = new Date().getMonth() + 1;
-
-  const loadCurrentItems = () => {
-    setIsLoadingItems(true);
-    setItemsError("");
-
-    getCurrentSeasonalItems()
-      .then((data) => {
-        setFeaturedItems(data.featured);
-      })
-      .catch(() => {
-        setItemsError("이번 달 제철 추천을 불러오지 못했습니다.");
-      })
-      .finally(() => {
-        setIsLoadingItems(false);
-      });
-  };
-
-  useEffect(() => {
-    loadCurrentItems();
-  }, []);
 
   return (
     <section className="page home-page">
@@ -57,15 +39,18 @@ function HomePage() {
           <h2 id="current-seasonal-heading">{month}월 제철 추천</h2>
           <Link to={`/search?month=${month}`}>더보기 &gt;</Link>
         </div>
-        {isLoadingItems ? <LoadingState message="이번 달 제철 항목을 불러오는 중입니다." /> : null}
-        {itemsError ? <ErrorState message={itemsError} onRetry={loadCurrentItems} /> : null}
-        {!isLoadingItems && !itemsError ? (
-          <div className="seasonal-circle-list">
-            {featuredItems.map((item) => (
-              <SeasonalCircleItem key={item.keyword} item={item} />
+        <div className="home-seasonal-button-list">
+          {homeSeasonalButtons.map(({ image, keyword }) => (
+            <Link
+              key={keyword}
+              className="home-seasonal-button"
+              to={`/seasonal/${encodeURIComponent(keyword)}`}
+              aria-label={`${keyword} 제철 정보 보기`}
+            >
+              <img src={image} alt="" />
+            </Link>
             ))}
-          </div>
-        ) : null}
+        </div>
       </section>
 
       <section className="home-page__menu" aria-labelledby="main-menu-heading">

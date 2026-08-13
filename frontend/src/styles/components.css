@@ -610,17 +610,29 @@
   padding: 0 1.5rem;
 }
 
-.seasonal-circle-list {
+.home-seasonal-button-list {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.6875rem;
   overflow-x: auto;
   padding: 0.25rem 1.5rem 0.75rem;
   scrollbar-width: none;
 }
 
-.seasonal-circle-list::-webkit-scrollbar,
+.home-seasonal-button-list::-webkit-scrollbar,
 .home-magazine__list::-webkit-scrollbar {
   display: none;
+}
+
+.home-seasonal-button {
+  flex: 0 0 4.625rem;
+  width: 4.625rem;
+  height: 4.625rem;
+}
+
+.home-seasonal-button img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .seasonal-circle-item {
@@ -669,9 +681,9 @@
 
 .home-menu-grid {
   position: relative;
-  width: min(100%, 20.25rem);
+  width: 100%;
   aspect-ratio: 324 / 267;
-  margin-left: 0.25rem;
+  margin: 0;
 }
 
 .home-menu-card {

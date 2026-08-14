@@ -5,6 +5,7 @@ import BottomNavigation from "./BottomNavigation";
 
 function AppLayout() {
   const { pathname } = useLocation();
+  const isMapPage = pathname === "/map";
   const isFigmaDesignedPage =
     pathname === "/" ||
     pathname === "/saved" ||
@@ -13,10 +14,16 @@ function AppLayout() {
     pathname === "/recommend" ||
     pathname.startsWith("/seasonal/");
 
+  const shellClassName = isMapPage
+    ? "app-shell app-shell--map-screen"
+    : isFigmaDesignedPage
+      ? "app-shell app-shell--figma-screen"
+      : "app-shell";
+
   return (
-    <div className={isFigmaDesignedPage ? "app-shell app-shell--figma-screen" : "app-shell"}>
-      {!isFigmaDesignedPage ? <AppHeader /> : null}
-      <main className="app-main">
+    <div className={shellClassName}>
+      {!isFigmaDesignedPage && !isMapPage ? <AppHeader /> : null}
+      <main className={isMapPage ? "app-main app-main--map" : "app-main"}>
         <Outlet />
       </main>
       {!isFigmaDesignedPage ? <BottomNavigation /> : null}

@@ -40,6 +40,14 @@ input {
   padding: 3.25rem 1.5rem 2.5rem;
 }
 
+.app-shell--map-screen .app-main--map {
+  width: min(100%, 27rem);
+  height: 100dvh;
+  min-height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+}
+
 .page {
   display: grid;
   gap: var(--space-6);

@@ -1,25 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getMapPlaces } from "../api/mapApi";
+import { getCurrentSeasonalItems } from "../api/seasonalApi";
 import ErrorState from "../components/common/ErrorState";
-import FilterTabs from "../components/common/FilterTabs";
 import LoadingState from "../components/common/LoadingState";
-import SaveButton from "../components/common/SaveButton";
-import PageHeader from "../components/layout/PageHeader";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { useRecentItems } from "../hooks/useRecentItems";
 import { useSavedItems } from "../hooks/useSavedItems";
-import { loadKakaoMap } from "../lib/loadKakaoMap";
 import type { KakaoMap, KakaoMaps, KakaoMarker } from "../kakao";
+import { getHomeSeasonalAsset } from "../lib/seasonalAsset";
+import { loadKakaoMap } from "../lib/loadKakaoMap";
 import type { Place } from "../types/place";
-import type { SeasonalCategoryFilter } from "../types/seasonal";
+import type { SeasonalItem } from "../types/seasonal";
 
-const categoryOptions = [
-  { label: "전체", value: "전체" },
-  { label: "과일", value: "과일" },
-  { label: "해산물", value: "해산물" },
-  { label: "채소", value: "채소" },
-] as const;
+const defaultMarkerImage =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'%3E%3Ccircle cx='18' cy='18' r='16' fill='%23315e25' stroke='white' stroke-width='3'/%3E%3Cpath d='M18 9.5a5.7 5.7 0 0 0-5.7 5.7c0 4.3 5.7 11.3 5.7 11.3s5.7-7 5.7-11.3A5.7 5.7 0 0 0 18 9.5Zm0 8.1a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8Z' fill='white'/%3E%3C/svg%3E";
 
 interface MapCenter {
   latitude: number;
@@ -45,19 +40,36 @@ function formatDistance(distance: number): string {
   return distance < 1000 ? `${distance}m` : `${(distance / 1000).toFixed(1)}km`;
 }
 
+function getPlaceRelatedKeywords(place: Place): string[] {
+  const keywords = place.relatedKeywords?.length
+    ? place.relatedKeywords
+    : [place.relatedKeyword];
+
+  return [...new Set(keywords.filter((keyword): keyword is string => Boolean(keyword?.trim())))];
+}
+
+function isRelatedToKeyword(place: Place, keyword: string): boolean {
+  return getPlaceRelatedKeywords(place).some(
+    (relatedKeyword) =>
+      relatedKeyword.includes(keyword) || keyword.includes(relatedKeyword)
+  );
+}
+
 function MapPage() {
   const mapElementRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
   const lastSearchCenterRef = useRef<MapCenter | null>(null);
   const placesRequestIdRef = useRef(0);
   const searchNearbyPlacesRef = useRef<(center: MapCenter) => void>(() => undefined);
-  const selectedCategoryRef = useRef<SeasonalCategoryFilter>("전체");
+  const ignoreNextMapIdleRef = useRef(false);
+  const placeCardRefs = useRef(new Map<string, HTMLElement>());
+
   const [maps, setMaps] = useState<KakaoMaps | null>(null);
   const [map, setMap] = useState<KakaoMap | null>(null);
-  const [category, setCategory] = useState<SeasonalCategoryFilter>("전체");
-  const [searchCenter, setSearchCenter] = useState<MapCenter | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
+  const [seasonalItems, setSeasonalItems] = useState<SeasonalItem[]>([]);
   const [showReSearch, setShowReSearch] = useState(false);
   const [mapError, setMapError] = useState("");
   const [placesError, setPlacesError] = useState("");
@@ -68,7 +80,7 @@ function MapPage() {
     requestLocation,
     status: locationStatus,
   } = useGeolocation();
-  const { hasPlace, savePlace } = useSavedItems();
+  const { hasPlace, removeItem, savePlace } = useSavedItems();
   const { recordPlace } = useRecentItems();
   const month = new Date().getMonth() + 1;
 
@@ -83,14 +95,19 @@ function MapPage() {
     relatedKeyword: place.relatedKeyword,
   }), []);
 
+  const visiblePlaces = useMemo(
+    () =>
+      selectedKeyword
+        ? places.filter((place) => isRelatedToKeyword(place, selectedKeyword))
+        : places,
+    [places, selectedKeyword]
+  );
+
   const searchNearbyPlaces = useCallback(
     (center: MapCenter) => {
       const requestId = placesRequestIdRef.current + 1;
       placesRequestIdRef.current = requestId;
       lastSearchCenterRef.current = center;
-      setSearchCenter((previousCenter) =>
-        isSameCenter(previousCenter, center) ? previousCenter : center
-      );
       setShowReSearch(false);
       setIsLoadingPlaces(true);
       setPlacesError("");
@@ -99,7 +116,6 @@ function MapPage() {
         latitude: center.latitude,
         longitude: center.longitude,
         month,
-        category: category === "전체" ? undefined : category,
       })
         .then((data) => {
           if (placesRequestIdRef.current !== requestId) {
@@ -107,7 +123,7 @@ function MapPage() {
           }
 
           setPlaces(data.places);
-          setSelectedPlace(null);
+          setSelectedPlace(data.places[0] ?? null);
         })
         .catch((error: unknown) => {
           if (placesRequestIdRef.current !== requestId) {
@@ -115,7 +131,9 @@ function MapPage() {
           }
 
           setPlacesError(
-            error instanceof Error ? error.message : "주변 장소를 불러오지 못했습니다."
+            error instanceof Error
+              ? error.message
+              : "주변 장소를 불러오지 못했습니다."
           );
         })
         .finally(() => {
@@ -124,12 +142,34 @@ function MapPage() {
           }
         });
     },
-    [category, month]
+    [month]
   );
 
   useEffect(() => {
     searchNearbyPlacesRef.current = searchNearbyPlaces;
   }, [searchNearbyPlaces]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    getCurrentSeasonalItems()
+      .then((data) => {
+        if (!isActive) {
+          return;
+        }
+
+        setSeasonalItems(data.featured.length > 0 ? data.featured : data.items);
+      })
+      .catch(() => {
+        if (isActive) {
+          setSeasonalItems([]);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -189,23 +229,16 @@ function MapPage() {
   }, [location, map, maps]);
 
   useEffect(() => {
-    if (selectedCategoryRef.current === category) {
-      return;
-    }
-
-    selectedCategoryRef.current = category;
-
-    if (searchCenter) {
-      searchNearbyPlaces(searchCenter);
-    }
-  }, [category, searchCenter, searchNearbyPlaces]);
-
-  useEffect(() => {
     if (!maps || !map) {
       return;
     }
 
     const handleIdle = () => {
+      if (ignoreNextMapIdleRef.current) {
+        ignoreNextMapIdleRef.current = false;
+        return;
+      }
+
       const center = map.getCenter();
       const currentCenter = {
         latitude: center.getLat(),
@@ -230,10 +263,18 @@ function MapPage() {
     }
 
     markersRef.current.forEach((marker) => marker.setMap(null));
-    markersRef.current = places.map((place) => {
+    markersRef.current = visiblePlaces.map((place) => {
+      const relatedKeyword = getPlaceRelatedKeywords(place)[0];
+      const markerImage = new maps.MarkerImage(
+        getHomeSeasonalAsset(relatedKeyword) ?? defaultMarkerImage,
+        new maps.Size(36, 36),
+        { offset: new maps.Point(18, 18) }
+      );
       const marker = new maps.Marker({
         position: new maps.LatLng(place.latitude, place.longitude),
+        image: markerImage,
       });
+
       marker.setMap(map);
       maps.event.addListener(marker, "click", () => setSelectedPlace(place));
       return marker;
@@ -243,7 +284,31 @@ function MapPage() {
       markersRef.current.forEach((marker) => marker.setMap(null));
       markersRef.current = [];
     };
-  }, [map, maps, places]);
+  }, [map, maps, visiblePlaces]);
+
+  useEffect(() => {
+    setSelectedPlace((previousPlace) => {
+      if (previousPlace && visiblePlaces.some((place) => place.id === previousPlace.id)) {
+        return previousPlace;
+      }
+
+      return visiblePlaces[0] ?? null;
+    });
+  }, [visiblePlaces]);
+
+  useEffect(() => {
+    if (!maps || !map || !selectedPlace) {
+      return;
+    }
+
+    ignoreNextMapIdleRef.current = true;
+    map.panTo(new maps.LatLng(selectedPlace.latitude, selectedPlace.longitude));
+    placeCardRefs.current.get(selectedPlace.id)?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [map, maps, selectedPlace]);
 
   const handleCurrentLocation = () => {
     setShowReSearch(false);
@@ -262,45 +327,81 @@ function MapPage() {
     });
   };
 
-  const relatedKeywords = selectedPlace
-    ? [
-        ...new Set(
-          selectedPlace.relatedKeywords?.length
-            ? selectedPlace.relatedKeywords
-            : [selectedPlace.relatedKeyword].filter(Boolean)
-        ),
-      ]
-    : [];
+  const handleKeywordSelect = (keyword: string) => {
+    setSelectedKeyword((previousKeyword) =>
+      previousKeyword === keyword ? null : keyword
+    );
+  };
+
+  const feedback = mapError ? (
+    <ErrorState message={mapError} />
+  ) : ["denied", "unavailable", "timeout", "unsupported", "error"].includes(
+      locationStatus
+    ) ? (
+    <ErrorState
+      message={locationError || "현재 위치를 확인하지 못했습니다."}
+      onRetry={requestLocation}
+    />
+  ) : locationStatus === "loading" || !maps ? (
+    <LoadingState message="현재 위치와 주변 제철 장소를 찾고 있습니다." />
+  ) : isLoadingPlaces ? (
+    <LoadingState message="주변 제철 장소를 찾고 있습니다." />
+  ) : placesError ? (
+    <ErrorState message={placesError} onRetry={handleReSearch} />
+  ) : null;
 
   return (
-    <section className="page map-page">
-      <PageHeader
-        title="제철 지도"
-        description="이번 달 제철 장소를 현재 위치 주변에서 확인합니다."
-      />
+    <section className="map-page map-page--figma">
+      <div className="map-page__viewport map-page__viewport--figma">
+        <div ref={mapElementRef} className="map-page__canvas map-page__canvas--figma" />
 
-      <div className="map-page__viewport">
-        <div ref={mapElementRef} className="map-page__canvas" />
+        <div className="map-page__top-content">
+          <div className="map-page__banner" aria-label="오늘의 제철 맛집 안내">
+            <span className="map-page__banner-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 3.5c-3.6 0-6.5 2.9-6.5 6.5 0 4.9 6.5 10.5 6.5 10.5S18.5 14.9 18.5 10c0-3.6-2.9-6.5-6.5-6.5Zm0 8.9A2.4 2.4 0 1 1 12 7.6a2.4 2.4 0 0 1 0 4.8Z" />
+              </svg>
+            </span>
+            <p>오늘의 제철 맛집을 경험하세요!</p>
+          </div>
 
-        <div className="map-page__controls">
-          <FilterTabs
-            ariaLabel="지도 장소 카테고리"
-            options={categoryOptions}
-            value={category}
-            onChange={setCategory}
-          />
-          <button
-            className="button button--secondary map-page__location-button"
-            type="button"
-            onClick={handleCurrentLocation}
-          >
-            현재 위치로 이동
-          </button>
+          {seasonalItems.length > 0 ? (
+            <div className="map-page__keyword-chips" aria-label="이달의 제철 키워드">
+              {seasonalItems.map((item) => {
+                const asset = getHomeSeasonalAsset(item.keyword);
+                const isSelected = selectedKeyword === item.keyword;
+
+                return (
+                  <button
+                    key={item.id}
+                    className={
+                      isSelected
+                        ? "map-page__keyword-chip map-page__keyword-chip--selected"
+                        : "map-page__keyword-chip"
+                    }
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => handleKeywordSelect(item.keyword)}
+                  >
+                    {asset ? (
+                      <img src={asset} alt="" />
+                    ) : (
+                      <span className="map-page__keyword-fallback" aria-hidden="true">
+                        {item.keyword.slice(0, 1)}
+                      </span>
+                    )}
+                    <span>{item.keyword}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
         </div>
 
         {showReSearch ? (
           <button
-            className="button button--primary map-page__research-button"
+            className="map-page__research-button map-page__research-button--figma"
             type="button"
             onClick={handleReSearch}
           >
@@ -308,86 +409,123 @@ function MapPage() {
           </button>
         ) : null}
 
-        {mapError ? (
-          <div className="map-page__state">
-            <ErrorState message={mapError} />
-          </div>
-        ) : null}
-        {locationStatus === "loading" ? (
-          <div className="map-page__state">
-            <LoadingState message="현재 위치를 확인하고 있습니다." />
-          </div>
-        ) : null}
-        {["denied", "unavailable", "timeout", "unsupported", "error"].includes(
-          locationStatus
-        ) ? (
-          <div className="map-page__state">
-            <ErrorState
-              message={locationError || "현재 위치를 확인하지 못했습니다."}
-              onRetry={requestLocation}
-            />
-          </div>
-        ) : null}
-        {isLoadingPlaces ? (
-          <div className="map-page__state">
-            <LoadingState message="주변 제철 장소를 찾고 있습니다." />
-          </div>
-        ) : null}
-        {placesError ? (
-          <div className="map-page__state">
-            <ErrorState message={placesError} onRetry={handleReSearch} />
-          </div>
-        ) : null}
-        {!isLoadingPlaces &&
-        !placesError &&
-        locationStatus === "success" &&
-        places.length === 0 ? (
-          <p className="map-page__empty-state">
-            이번 달 제철 관련 추천 장소가 없습니다.
+        <button
+          className="map-page__location-button map-page__location-button--figma"
+          type="button"
+          onClick={handleCurrentLocation}
+          aria-label="현재 위치로 이동"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 2.75a.9.9 0 0 1 .9.9v1.64a6.76 6.76 0 0 1 5.45 5.45h1.64a.9.9 0 1 1 0 1.8h-1.64a6.76 6.76 0 0 1-5.45 5.45v1.64a.9.9 0 1 1-1.8 0v-1.64a6.76 6.76 0 0 1-5.45-5.45H4.01a.9.9 0 1 1 0-1.8h1.64A6.76 6.76 0 0 1 11.1 5.29V3.65a.9.9 0 0 1 .9-.9Zm0 4.34a4.86 4.86 0 1 0 0 9.72 4.86 4.86 0 0 0 0-9.72Zm0 2.25a2.61 2.61 0 1 1 0 5.22 2.61 2.61 0 0 1 0-5.22Z" />
+          </svg>
+        </button>
+
+        {feedback ? <div className="map-page__feedback">{feedback}</div> : null}
+
+        {!feedback && visiblePlaces.length === 0 ? (
+          <p className="map-page__empty-state map-page__empty-state--figma">
+            이 지역에서 찾은 제철 관련 장소가 없습니다.
           </p>
         ) : null}
 
-        {selectedPlace ? (
-          <aside className="map-place-overlay" aria-label={`${selectedPlace.name} 상세`}>
-            <div className="map-place-overlay__heading">
-              <div>
-                <h2>{selectedPlace.name}</h2>
-                <p>{selectedPlace.category}</p>
-              </div>
-              <button
-                className="button button--text"
-                type="button"
-                onClick={() => setSelectedPlace(null)}
-              >
-                닫기
-              </button>
+        {visiblePlaces.length > 0 ? (
+          <section className="map-place-carousel" aria-label="주변 제철 장소">
+            <div className="map-place-carousel__track">
+              {visiblePlaces.map((place) => {
+                const relatedKeywords = getPlaceRelatedKeywords(place);
+                const seasonalAsset = getHomeSeasonalAsset(relatedKeywords[0]);
+                const isSelected = selectedPlace?.id === place.id;
+                const isSaved = hasPlace(place.id);
+
+                return (
+                  <article
+                    key={place.id}
+                    ref={(element) => {
+                      if (element) {
+                        placeCardRefs.current.set(place.id, element);
+                      } else {
+                        placeCardRefs.current.delete(place.id);
+                      }
+                    }}
+                    className={
+                      isSelected
+                        ? "map-place-card map-place-card--selected"
+                        : "map-place-card"
+                    }
+                  >
+                    <button
+                      className="map-place-card__body"
+                      type="button"
+                      onClick={() => setSelectedPlace(place)}
+                      aria-pressed={isSelected}
+                    >
+                      <span className="map-place-card__visual" aria-hidden="true">
+                        {seasonalAsset ? (
+                          <img src={seasonalAsset} alt="" />
+                        ) : (
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M12 3.5c-3.6 0-6.5 2.9-6.5 6.5 0 4.9 6.5 10.5 6.5 10.5S18.5 14.9 18.5 10c0-3.6-2.9-6.5-6.5-6.5Zm0 8.9A2.4 2.4 0 1 1 12 7.6a2.4 2.4 0 0 1 0 4.8Z" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="map-place-card__content">
+                        <span className="map-place-card__title">{place.name}</span>
+                        {relatedKeywords.length > 0 ? (
+                          <span className="map-place-card__keywords">
+                            {relatedKeywords.join(" · ")}
+                          </span>
+                        ) : null}
+                        <span className="map-place-card__category">{place.category}</span>
+                        <span className="map-place-card__address">
+                          {place.address || "주소 정보 없음"}
+                        </span>
+                        {place.phone ? (
+                          <span className="map-place-card__phone">{place.phone}</span>
+                        ) : null}
+                      </span>
+                    </button>
+
+                    <button
+                      className={
+                        isSaved
+                          ? "map-place-card__save map-place-card__save--saved"
+                          : "map-place-card__save"
+                      }
+                      type="button"
+                      aria-label={`${place.name} ${isSaved ? "저장됨" : "저장"}`}
+                      aria-pressed={isSaved}
+                      onClick={() => {
+                        if (isSaved) {
+                          removeItem(`place:${place.id}`);
+                          return;
+                        }
+
+                        savePlace(createSavePlaceInput(place));
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M12 20.1 4.9 13a5.04 5.04 0 0 1 7.1-7.1L12 6l.1-.1a5.04 5.04 0 0 1 7.1 7.1L12 20.1Z" />
+                      </svg>
+                    </button>
+
+                    <div className="map-place-card__footer">
+                      <span>{formatDistance(place.distance)}</span>
+                      {place.placeUrl ? (
+                        <a
+                          href={place.placeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => recordPlace(createSavePlaceInput(place))}
+                        >
+                          카카오맵에서 보기
+                        </a>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
-            {relatedKeywords.length > 0 ? (
-              <p className="map-place-overlay__seasonal">
-                {month}월 제철 · {relatedKeywords.join(" · ")}
-              </p>
-            ) : null}
-            <p>현재 검색 중심에서 {formatDistance(selectedPlace.distance)}</p>
-            <p>{selectedPlace.address || "주소 정보 없음"}</p>
-            {selectedPlace.phone ? <p>{selectedPlace.phone}</p> : null}
-            <div className="map-place-overlay__actions">
-              <SaveButton
-                isSaved={hasPlace(selectedPlace.id)}
-                onClick={() => savePlace(createSavePlaceInput(selectedPlace))}
-              />
-              {selectedPlace.placeUrl ? (
-                <a
-                  className="button button--primary"
-                  href={selectedPlace.placeUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => recordPlace(createSavePlaceInput(selectedPlace))}
-                >
-                  카카오맵에서 보기
-                </a>
-              ) : null}
-            </div>
-          </aside>
+          </section>
         ) : null}
       </div>
     </section>
